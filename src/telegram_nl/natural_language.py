@@ -398,23 +398,6 @@ _OPPORTUNITY_CONTEXT_KEYWORDS = (
     "リスト",
     "候補",
 )
-_WF_CREATE_KEYWORDS = (
-    "建立 workflow", "建一個 workflow", "建立一個 workflow",
-    "create a workflow", "create workflow",
-    "幫我建立", "建立自動化", "自動化流程", "工作流程",
-    "建立工作流", "設定 workflow",
-)
-_MUSIC_PLAY_KEYWORDS = (
-    "放音樂", "播放音樂", "放歌", "播歌", "放一首歌", "放首歌",
-    "play music", "play a song", "放我最愛", "隨機放", "放最愛",
-)
-# Light/smart-home command discriminators — used by fallback router.
-_HOME_ON_VERBS = ("開", "打開", "turn on", "on")
-_HOME_OFF_VERBS = ("關", "關掉", "關閉", "turn off", "off", "熄")
-_HOME_DIM_VERBS = ("調暗", "dim", "暗一點")
-_HOME_BRIGHT_VERBS = ("調亮", "bright", "brighten", "亮一點")
-_HOME_DEVICE_KEYWORDS = ("電燈", "燈", "light", "lights", "照明", "燈光")
-
 _URL_PATTERN = re.compile(r"https?://\S+")
 _GENERIC_CARD_NUMBER_PATTERN = re.compile(
     r"\b(?:[A-Z0-9]+/[A-Z0-9]+(?:-[A-Z0-9]+)*-\d{1,3}|[A-Z0-9]{2,}-[A-Z]{1,4}\d{1,4})\b",
@@ -523,7 +506,6 @@ class TelegramNaturalLanguageRouter:
             "You route Telegram messages for a trading-card price assistant and must return only JSON.\n"
             "Allowed intents: lookup_card, trend_board, add_watch, list_watches, remove_watch, update_watch_price, reputation_snapshot, product_research, "
             "web_research, opportunity_remove, sns_add_account, sns_add_keyword, sns_list, sns_delete, sns_buzz, sns_bulk_add_filter, sns_bulk_remove_filter, sns_bulk_update_schedule, sns_clear_filter, "
-            "create_workflow, play_music, home_action, "
             "help, status, tools, scan_help, unknown.\n"
             + tool_spec_block +
             "Use lookup_card when the user wants the price, value, or card lookup of one specific card.\n"
@@ -580,23 +562,13 @@ class TelegramNaturalLanguageRouter:
             "an action like '加上/加入/改成', and a filter/keyword hint word).\n"
             "  Set bulk_target_domain to one of: tcg, pokemon, yugioh, ws, union_arena.\n"
             "  Set bulk_filter_keywords to the list of keywords to append (e.g. [\"抽選\"]).\n"
-            "Use create_workflow when the user wants to BUILD / CREATE / 建立 / 設定 a workflow / 工作流 / 自動化流程 / 例行任務.\n"
-            "  Set workflow_description to the full natural-language task description the user provided (verbatim or lightly cleaned).\n"
-            "  Signals: '建立 workflow', '建立一個...工作流', 'create a workflow', '幫我建立...流程', '自動化...任務'.\n"
-            "Use play_music when the user wants to play / 播放 / 放 music, a song, or audio.\n"
-            "  Set music_query to the song/artist name, or 'playbest' if the user wants the best/favourite track, or 'random' for random playback, or null if unspecified.\n"
-            "  Signals: '放音樂', '播放音樂', '放歌', '播歌', '放一首歌', '放最愛', '隨機放音樂', 'play music', 'play a song'.\n"
-            "Use home_action when the user wants to control a smart home device (lights, appliances, curtains, etc.).\n"
-            "  Set home_target to the device or area (e.g. '客廳電燈', '臥室燈', '全部燈', 'all lights', '電燈'). Set home_target to null if no specific device is named.\n"
-            "  Set home_command to one of: 'on', 'off', 'dim', 'bright'. Use 'on' for 開/打開/turn on; 'off' for 關/關閉/turn off/熄; 'dim' for 調暗; 'bright' for 調亮. Set null if unclear.\n"
-            "  Signals: '開燈', '關燈', '打開電燈', '關掉燈', '開客廳燈', '把燈打開', 'turn on the lights', 'lights off'.\n"
             "Use help when the user asks what the bot can do.\n"
             "Use status when the user asks about current runtime state, models, or service health.\n"
             "Use tools when the user explicitly asks for the full tool catalog or list of available tools.\n"
             "Use scan_help when the user asks how to scan a card from a photo or wants image-lookup instructions before sending a photo.\n"
             "Use unknown when the request is unrelated or too ambiguous.\n"
             "DISAMBIGUATION RULES:\n"
-            "- Any mention of @username (e.g. @elonmusk, @aka_claw) means SNS, not Mercari. Pick sns_add_account / sns_delete / sns_list accordingly.\n"
+            "- Any mention of @username (e.g. @example_news, @example_bot) means SNS, not Mercari. Pick sns_add_account / sns_delete / sns_list accordingly.\n"
             "- 'X', 'Twitter', '推特', '推文', '推主', '帳號' always indicate SNS intents.\n"
             "- '追蹤'/'tracking' alone is ambiguous: if it co-occurs with @handle/X/Twitter → SNS; if it co-occurs with a price (円/JPY/万) or Mercari URL → Mercari.\n"
             "- '取消'/'刪除'/'unfollow'/'unwatch' on an @ handle → sns_delete with sns_handle set, NOT remove_watch.\n"
@@ -645,17 +617,17 @@ class TelegramNaturalLanguageRouter:
             '- "remove target 2 from hunt status" -> opportunity_remove, opportunity_target="2"\n'
             '- "I am not interested in Umbreon ex SAR anymore" -> opportunity_remove, opportunity_target="Umbreon ex SAR"\n'
             '- "機會清單不要ホエルオーex" -> opportunity_remove, opportunity_target="ホエルオーex"\n'
-            '- "追蹤 @elonmusk" -> sns_add_account, sns_handle="elonmusk"\n'
-            '- "新增 X 監控 @aka_claw" -> sns_add_account, sns_handle="aka_claw"\n'
+            '- "追蹤 @example_news" -> sns_add_account, sns_handle="example_news"\n'
+            '- "新增 X 監控 @example_bot" -> sns_add_account, sns_handle="example_bot"\n'
             '- "幫我把 @tenbai_hakase 加上 [抽選] 篩選" -> sns_add_account, sns_handle="tenbai_hakase", sns_include_keywords=["抽選"]\n'
-            '- "把 @PokeGetInfoMain 的追蹤排程改成每 720 分鐘" -> sns_add_account, sns_handle="PokeGetInfoMain", sns_schedule_minutes=720\n'
-            '- "schedule @elonmusk to 60 minutes" -> sns_add_account, sns_handle="elonmusk", sns_schedule_minutes=60\n'
-            '- "刪除追蹤 @elonmusk" -> sns_delete, sns_handle="elonmusk"\n'
-            '- "取消追蹤 @aka_claw" -> sns_delete, sns_handle="aka_claw"\n'
-            '- "unfollow @elonmusk" -> sns_delete, sns_handle="elonmusk"\n'
-            '- "把 @ARS_Arsales 的 filter 全部拿掉" -> sns_clear_filter, sns_handle="ARS_Arsales"\n'
-            '- "清空 @elonmusk 的篩選" -> sns_clear_filter, sns_handle="elonmusk"\n'
-            '- "clear filter on @aka_claw" -> sns_clear_filter, sns_handle="aka_claw"\n'
+            '- "把 @example_sched 的追蹤排程改成每 720 分鐘" -> sns_add_account, sns_handle="example_sched", sns_schedule_minutes=720\n'
+            '- "schedule @example_news to 60 minutes" -> sns_add_account, sns_handle="example_news", sns_schedule_minutes=60\n'
+            '- "刪除追蹤 @example_news" -> sns_delete, sns_handle="example_news"\n'
+            '- "取消追蹤 @example_bot" -> sns_delete, sns_handle="example_bot"\n'
+            '- "unfollow @example_news" -> sns_delete, sns_handle="example_news"\n'
+            '- "把 @example_tcg 的 filter 全部拿掉" -> sns_clear_filter, sns_handle="example_tcg"\n'
+            '- "清空 @example_news 的篩選" -> sns_clear_filter, sns_handle="example_news"\n'
+            '- "clear filter on @example_bot" -> sns_clear_filter, sns_handle="example_bot"\n'
             '- "我的 X 追蹤清單" -> sns_list\n'
             '- "看一下推主追蹤" -> sns_list\n'
             '- "監控關鍵字 機動戰士" -> sns_add_keyword, sns_keyword="機動戰士"\n'
@@ -668,17 +640,6 @@ class TelegramNaturalLanguageRouter:
             '- "把所有 pokemon 帳號 filter 裡的 抽選 移除" -> sns_bulk_remove_filter, bulk_target_domain="pokemon", bulk_filter_keywords=["抽選"]\n'
             '- "把 sns 監控規則裡 domain 有 tcg 的帳號 追蹤頻率都改成每 720 分鐘" -> sns_bulk_update_schedule, bulk_target_domain="tcg", sns_schedule_minutes=720\n'
             '- "所有 yugioh 帳號排程改成每 60 分鐘" -> sns_bulk_update_schedule, bulk_target_domain="yugioh", sns_schedule_minutes=60\n'
-            '- "建立一個 workflow：每天早上查東京天氣，念出來" -> create_workflow, workflow_description="每天早上查東京天氣，念出來"\n'
-            '- "幫我建立自動化流程：先說早安問候，再播放最愛音樂" -> create_workflow, workflow_description="先說早安問候，再播放最愛音樂"\n'
-            '- "放音樂" -> play_music, music_query=null\n'
-            '- "放我最愛的音樂" -> play_music, music_query="playbest"\n'
-            '- "隨機放一首" -> play_music, music_query="random"\n'
-            '- "放 初音ミク の曲" -> play_music, music_query="初音ミク"\n'
-            '- "開客廳燈" -> home_action, home_target="客廳燈", home_command="on"\n'
-            '- "關掉臥室電燈" -> home_action, home_target="臥室電燈", home_command="off"\n'
-            '- "把燈打開" -> home_action, home_target="燈", home_command="on"\n'
-            '- "turn on the lights" -> home_action, home_target="lights", home_command="on"\n'
-            '- "打開客廳電燈" -> home_action, home_target="客廳電燈", home_command="on"\n'
             '- "你會什麼" -> help\n'
             '- "你現在狀態如何" -> status\n'
             '- "列出所有工具" -> tools\n'
@@ -802,22 +763,8 @@ def _extract_watch_query(text: str) -> str | None:
     return query if len(query) >= 2 else None
 
 
-def _extract_home_target(text: str) -> str | None:
-    """Strip command verbs from a home-action message and return the device/area."""
-    stripped = text
-    # Process longest keywords first so "打開" is stripped before "開", "關掉" before "關", etc.
-    all_verbs = sorted(
-        (*_HOME_ON_VERBS, *_HOME_OFF_VERBS, *_HOME_DIM_VERBS, *_HOME_BRIGHT_VERBS,
-         "把", "幫我", "請", "全部", "the", "all"),
-        key=len, reverse=True,
-    )
-    for kw in all_verbs:
-        stripped = re.sub(re.escape(kw), " ", stripped, flags=re.IGNORECASE)
-    result = " ".join(stripped.split()).strip()
-    return result if result else None
-
-
-def fallback_route_telegram_natural_language(text: str) -> TelegramNaturalLanguageIntent | None:
+def fast_route_telegram_natural_language(text: str) -> TelegramNaturalLanguageIntent | None:
+    """Deterministic generic fast path for structured, high-confidence intents."""
     content = text.strip()
     if not content:
         return None
@@ -966,6 +913,16 @@ def fallback_route_telegram_natural_language(text: str) -> TelegramNaturalLangua
             confidence=confidence,
         )
 
+    return None
+
+
+def slow_fallback_route_telegram_natural_language(text: str) -> TelegramNaturalLanguageIntent | None:
+    """Residual fallback used after the model path misses or is unavailable."""
+    content = text.strip()
+    if not content:
+        return None
+    lowered = content.lower()
+
     # ── Opportunity agent ─────────────────────────────────────────────────────
 
     if _looks_like_opportunity_remove_request(content):
@@ -973,49 +930,6 @@ def fallback_route_telegram_natural_language(text: str) -> TelegramNaturalLangua
             intent="opportunity_remove",
             opportunity_target=_extract_opportunity_target(content),
             confidence=0.65,
-        )
-
-    # ── create_workflow ───────────────────────────────────────────────────────
-
-    if any(kw in content for kw in _WF_CREATE_KEYWORDS):
-        return TelegramNaturalLanguageIntent(
-            intent="create_workflow",
-            workflow_description=content,
-            confidence=0.80,
-        )
-
-    # ── play_music ────────────────────────────────────────────────────────────
-
-    if any(kw in lowered for kw in _MUSIC_PLAY_KEYWORDS):
-        if "最愛" in content or "playbest" in lowered or "best" in lowered:
-            music_q: str | None = "playbest"
-        elif "隨機" in content or "random" in lowered:
-            music_q = "random"
-        else:
-            music_q = None
-        return TelegramNaturalLanguageIntent(
-            intent="play_music",
-            music_query=music_q,
-            confidence=0.85,
-        )
-
-    # ── home_action ───────────────────────────────────────────────────────────
-
-    has_device = any(kw in lowered for kw in _HOME_DEVICE_KEYWORDS)
-    if has_device:
-        if any(kw in lowered for kw in _HOME_DIM_VERBS):
-            cmd = "dim"
-        elif any(kw in lowered for kw in _HOME_BRIGHT_VERBS):
-            cmd = "bright"
-        elif any(kw in lowered for kw in _HOME_OFF_VERBS):
-            cmd = "off"
-        else:
-            cmd = "on"
-        return TelegramNaturalLanguageIntent(
-            intent="home_action",
-            home_target=_extract_home_target(content),
-            home_command=cmd,
-            confidence=0.80,
         )
 
     # ── Watch intents ─────────────────────────────────────────────────────────
@@ -1149,6 +1063,14 @@ def fallback_route_telegram_natural_language(text: str) -> TelegramNaturalLangua
     return None
 
 
+def fallback_route_telegram_natural_language(text: str) -> TelegramNaturalLanguageIntent | None:
+    """Compatibility keyword router: generic fast path plus residual fallback."""
+    fast_intent = fast_route_telegram_natural_language(text)
+    if fast_intent is not None:
+        return fast_intent
+    return slow_fallback_route_telegram_natural_language(text)
+
+
 def _resolve_generate_url(endpoint: str) -> str:
     parsed = urlparse(endpoint)
     path = parsed.path.rstrip("/")
@@ -1179,7 +1101,6 @@ _ALLOWED_INTENTS = frozenset({
     "sns_add_account", "sns_add_keyword", "sns_list", "sns_delete", "sns_buzz",
     "sns_bulk_add_filter", "sns_bulk_remove_filter", "sns_bulk_update_schedule",
     "sns_clear_filter",
-    "create_workflow", "play_music", "home_action",
     "help", "status", "tools", "scan_help", "unknown",
 })
 

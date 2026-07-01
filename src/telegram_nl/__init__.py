@@ -3,6 +3,8 @@ from telegram_nl.natural_language import (
     TelegramNaturalLanguageRouter,
     build_telegram_natural_language_router,
     fallback_route_telegram_natural_language,
+    fast_route_telegram_natural_language,
+    slow_fallback_route_telegram_natural_language,
 )
 
 __all__ = [
@@ -10,4 +12,6 @@ __all__ = [
     "TelegramNaturalLanguageRouter",
     "build_telegram_natural_language_router",
     "fallback_route_telegram_natural_language",
+    "fast_route_telegram_natural_language",
+    "slow_fallback_route_telegram_natural_language",
 ]
