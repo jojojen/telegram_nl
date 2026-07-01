@@ -20,6 +20,8 @@ from telegram_nl.natural_language import (
     _split_keyword_phrase,
     build_telegram_natural_language_router,
     fallback_route_telegram_natural_language,
+    fast_route_telegram_natural_language,
+    slow_fallback_route_telegram_natural_language,
 )
 
 
@@ -221,127 +223,104 @@ def test_fallback_routes_watch_add() -> None:
     assert intent.watch_price_threshold == 50000
 
 
-# ── Canonical intents: create_workflow ───────────────────────────────────────
+# ── App-intent compatibility via extra_allowed_intents ───────────────────────
 
-def test_normalize_intent_accepts_create_workflow() -> None:
+def test_normalize_intent_accepts_extra_allowed_create_workflow() -> None:
     payload = {"intent": "create_workflow", "workflow_description": "每天查天氣"}
-    result = _normalize_intent(payload)
+    result = _normalize_intent(payload, extra_allowed_intents=frozenset({"create_workflow"}))
     assert result.intent == "create_workflow"
     assert result.workflow_description == "每天查天氣"
 
 
-def test_fallback_routes_create_workflow_chinese() -> None:
-    result = fallback_route_telegram_natural_language("建立 workflow：每天查天氣並念出來")
+# ── Routing boundary characterization ────────────────────────────────────────
+
+def test_fallback_routes_clear_filter_for_single_handle() -> None:
+    result = fallback_route_telegram_natural_language("把 @example_tcg 的 filter 全部拿掉")
     assert result is not None
-    assert result.intent == "create_workflow"
-    assert result.workflow_description is not None
-    assert "天氣" in result.workflow_description
+    assert result.intent == "sns_clear_filter"
+    assert result.sns_handle == "example_tcg"
 
 
-def test_fallback_routes_create_workflow_english() -> None:
-    result = fallback_route_telegram_natural_language("create a workflow that checks weather daily")
+def test_fast_route_routes_clear_filter_for_single_handle() -> None:
+    result = fast_route_telegram_natural_language("把 @example_tcg 的 filter 全部拿掉")
     assert result is not None
-    assert result.intent == "create_workflow"
+    assert result.intent == "sns_clear_filter"
+    assert result.sns_handle == "example_tcg"
 
 
-def test_fallback_routes_create_workflow_automation_phrasing() -> None:
-    result = fallback_route_telegram_natural_language("幫我建立自動化流程：先說早安，再播音樂")
+def test_slow_fallback_does_not_route_clear_filter_fast_path_case() -> None:
+    result = slow_fallback_route_telegram_natural_language("把 @example_tcg 的 filter 全部拿掉")
+    assert result is None
+
+
+def test_fallback_delete_phrase_still_routes_to_sns_delete() -> None:
+    result = fallback_route_telegram_natural_language("刪除追蹤 @example_news")
     assert result is not None
-    assert result.intent == "create_workflow"
+    assert result.intent == "sns_delete"
+    assert result.sns_handle == "example_news"
 
 
-# ── Canonical intents: play_music ─────────────────────────────────────────────
+def test_fallback_routes_schedule_update_to_sns_add_account_with_minutes() -> None:
+    result = fallback_route_telegram_natural_language("把 @example_sched 的追蹤排程改成每 720分鐘")
+    assert result is not None
+    assert result.intent == "sns_add_account"
+    assert result.sns_handle == "example_sched"
+    assert result.sns_schedule_minutes == 720
 
-def test_normalize_intent_accepts_play_music() -> None:
-    payload = {"intent": "play_music", "music_query": "playbest"}
+
+def test_fallback_routes_bulk_schedule_update_with_explicit_plural() -> None:
+    result = fallback_route_telegram_natural_language(
+        "所有 yugioh 帳號排程改成每 60 分鐘"
+    )
+    assert result is not None
+    assert result.intent == "sns_bulk_update_schedule"
+    assert result.bulk_target_domain == "yugioh"
+    assert result.sns_schedule_minutes == 60
+
+
+def test_fallback_returns_none_for_bulk_schedule_without_explicit_plural() -> None:
+    result = fallback_route_telegram_natural_language(
+        "把 sns 監控規則裡 domain 有 tcg 的帳號 追蹤頻率都改成每 720 分鐘"
+    )
+    assert result is None or result.intent != "sns_bulk_update_schedule"
+
+
+def test_fallback_requires_filter_hint_for_clear_filter() -> None:
+    result = fallback_route_telegram_natural_language("拿掉 @example_bot")
+    assert result is None or result.intent != "sns_clear_filter"
+
+
+def test_fallback_returns_none_for_bare_marketplace_url() -> None:
+    result = fallback_route_telegram_natural_language("https://jp.mercari.com/shops/product/abc123")
+    assert result is None
+
+
+def test_fallback_returns_none_for_unrelated_message() -> None:
+    result = fallback_route_telegram_natural_language("明天天氣如何")
+    assert result is None
+
+
+def test_slow_fallback_no_longer_routes_openclaw_app_intents() -> None:
+    result = slow_fallback_route_telegram_natural_language("建立 workflow：每天查天氣並念出來")
+    assert result is None
+
+
+def test_normalize_intent_accepts_clear_filter_payload() -> None:
+    payload = {"intent": "sns_clear_filter", "sns_handle": "example_tcg"}
     result = _normalize_intent(payload)
-    assert result.intent == "play_music"
-    assert result.music_query == "playbest"
+    assert result.intent == "sns_clear_filter"
+    assert result.sns_handle == "example_tcg"
 
 
-def test_fallback_routes_play_music_chinese() -> None:
-    result = fallback_route_telegram_natural_language("放音樂")
-    assert result is not None
-    assert result.intent == "play_music"
-    assert result.music_query is None
-
-
-def test_fallback_routes_play_music_best() -> None:
-    result = fallback_route_telegram_natural_language("放我最愛的音樂")
-    assert result is not None
-    assert result.intent == "play_music"
-    assert result.music_query == "playbest"
-
-
-def test_fallback_routes_play_music_random() -> None:
-    result = fallback_route_telegram_natural_language("隨機放一首")
-    assert result is not None
-    assert result.intent == "play_music"
-    assert result.music_query == "random"
-
-
-def test_fallback_routes_play_music_english() -> None:
-    result = fallback_route_telegram_natural_language("play music")
-    assert result is not None
-    assert result.intent == "play_music"
-
-
-# ── Canonical intents: home_action ────────────────────────────────────────────
-
-def test_normalize_intent_accepts_home_action() -> None:
-    payload = {"intent": "home_action", "home_target": "客廳電燈", "home_command": "on"}
-    result = _normalize_intent(payload)
-    assert result.intent == "home_action"
-    assert result.home_target == "客廳電燈"
-    assert result.home_command == "on"
-
-
-def test_fallback_routes_home_action_lights_on() -> None:
-    result = fallback_route_telegram_natural_language("開客廳燈")
-    assert result is not None
-    assert result.intent == "home_action"
-    assert result.home_command == "on"
-    assert result.home_target == "客廳燈"
-
-
-def test_fallback_routes_home_action_lights_off() -> None:
-    result = fallback_route_telegram_natural_language("關掉電燈")
-    assert result is not None
-    assert result.intent == "home_action"
-    assert result.home_command == "off"
-    assert result.home_target == "電燈"
-
-
-def test_fallback_routes_home_action_all_lights_on() -> None:
-    result = fallback_route_telegram_natural_language("把燈打開")
-    assert result is not None
-    assert result.intent == "home_action"
-    assert result.home_command == "on"
-    assert result.home_target == "燈"
-
-
-def test_fallback_routes_home_action_english() -> None:
-    result = fallback_route_telegram_natural_language("turn on the lights")
-    assert result is not None
-    assert result.intent == "home_action"
-    assert result.home_command == "on"
-    assert result.home_target == "lights"
-
-
-def test_fallback_routes_home_action_complex_chinese() -> None:
-    result = fallback_route_telegram_natural_language("打開客廳電燈")
-    assert result is not None
-    assert result.intent == "home_action"
-    assert result.home_command == "on"
-    assert result.home_target == "客廳電燈"
-
-
-def test_fallback_routes_home_action_off_with_target() -> None:
-    result = fallback_route_telegram_natural_language("關掉臥室燈")
-    assert result is not None
-    assert result.intent == "home_action"
-    assert result.home_command == "off"
-    assert result.home_target == "臥室燈"
+def test_normalize_intent_rejects_out_of_range_schedule_in_payload() -> None:
+    for bad in (4, 1500, "not a number", None):
+        payload = {
+            "intent": "sns_add_account",
+            "sns_handle": "x",
+            "sns_schedule_minutes": bad,
+        }
+        result = _normalize_intent(payload)
+        assert result.sns_schedule_minutes is None
 
 
 def test_build_router_accepts_extra_allowed_intents_param_for_compat() -> None:
